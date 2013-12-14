@@ -1,12 +1,15 @@
 import sys
+import argparse
 from os import listdir, system, rename, remove
-from os.path import isfile, join
+from os.path import isfile, isdir, join
 
+#Script functions
 def passesFilter(file, fileFilter):
-	if fileFilter is None:
+	lfile = file.lower();
+	if not fileFilter:
 		return True
 	else: 
-		return file.endswith(fileFilter)
+		return reduce(lambda x, y: x or lfile.endswith(y.lower()), fileFilter, False)
 		
 def processCommand(newpath, command):
 	tempfile = "temp232130-0230-120-312301-231" 
@@ -17,30 +20,32 @@ def processCommand(newpath, command):
 
 def applyScript(dir, command, fileFilter):
 	for file in listdir(dir):
-		if not file.startswith(".") and passesFilter(file, fileFilter): #Ignore dot files/directories, and files that do not pass filter
+		if not file.startswith("."): #Ignore dot files/directories, and files that do not pass filter
 			newpath = join(dir, file)
-			if isfile(newpath):
+			if isfile(newpath) and passesFilter(newpath, fileFilter):
 				processCommand(newpath, command)
-				print str('Applied to file: ' + newpath)
-			else:
-				applyScript(join(dir, file), command, fileFilter)
+				print str(newpath) #Print filepaths we are applied to
+			elif isdir(newpath):
+				applyScript(newpath, command, fileFilter)
 	return
 
-argCount = len(sys.argv)
-fileFilter = None
+#Parsing functions
+def dirArg (string):
+	if isdir(string):
+		return string
+	else:
+		raise argparse.ArgumentTypeError('Path must be a directory!')
+		
+def commandArg(string):
+	if string.find("%f") != -1:
+		return string
+	else:
+		raise argparse.ArgumentTypeError('Command must have a %f parameter!')
 
-if argCount != 3:
-	if(argCount == 4):
-		fileFilter = sys.argv[3];
-	else:	
-		print "Error: Incorrect paramaters! Format: python processor.py <path> <commandToApply> <filter>. Filter is optional."	 
-		sys.exit()
-			
-folderPath = sys.argv[1]
-command = sys.argv[2]	
+parser = argparse.ArgumentParser()
+parser.add_argument("path", type=dirArg, help="The folder path we want to parse")
+parser.add_argument("command", type=commandArg, help="The command we want to execute. Must have a %f parameter. %fsafe can be used when we want to do unsafe operations on the same file (ex: unexpand -t 4 %f > %fsafe)")
+parser.add_argument("filter", default=[], nargs='*', help="An optional filePath filter")
 
-if command.find("%f") == -1:
-	print "Error: Must have the file path somewhere in the command. The filepath is denoted by %f in the command."
-	sys.exit()
-
-applyScript(folderPath, command, fileFilter)
+args = parser.parse_args()
+applyScript(args.path, args.command, args.filter)
